@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 namespace TaskManagementSystem.API.Models;
 
 public class User

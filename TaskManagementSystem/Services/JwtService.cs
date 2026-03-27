@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using TaskManagementSystem.API.Models;
+using TaskManagementSystem.API.Settings;
 
 namespace TaskManagementSystem.API.Services;
 
