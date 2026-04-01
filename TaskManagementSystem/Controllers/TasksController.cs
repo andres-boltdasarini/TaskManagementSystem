@@ -39,7 +39,7 @@ public class TasksController : ControllerBase
         return Ok(tasks);
     }
 
-    [HttpGet("{id}")]
+    [HttpGet("GetTask/{id}")]
     public async Task<ActionResult<TaskItem>> GetTask(Guid id)
     {
         var userId = GetCurrentUserId();
@@ -53,8 +53,8 @@ public class TasksController : ControllerBase
         
         return Ok(task);
     }
-
-    [HttpPost]
+   
+    [HttpPost("CreateTask")]
     public async Task<ActionResult<TaskItem>> CreateTask(TaskItem task)
     {
         var userId = GetCurrentUserId();
@@ -69,7 +69,7 @@ public class TasksController : ControllerBase
         return CreatedAtAction(nameof(GetTask), new { id = task.Id }, task);
     }
 
-    [HttpPut("{id}")]
+    [HttpPut("UpdateTask/{id}")]
     public async Task<ActionResult> UpdateTask(Guid id, TaskItem updatedTask)
     {
         if (id != updatedTask.Id)
@@ -95,7 +95,7 @@ public class TasksController : ControllerBase
         return NoContent();
     }
 
-    [HttpDelete("{id}")]
+    [HttpDelete("DeleteTask/{id}")]
     public async Task<IActionResult> DeleteTask(Guid id)
     {
         var userId = GetCurrentUserId();
