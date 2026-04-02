@@ -9,7 +9,7 @@ namespace TaskManagementSystem.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize] // Защищаем все endpoints контроллера
+[Authorize]
 public class TasksController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -29,14 +29,118 @@ public class TasksController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<TaskItem>>> GetTasks()
+    public async Task<ActionResult<PagedResponseDto<TaskItem>>> GetTasks(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] bool? isCompleted = null,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] string? sortBy = "createdat",
+        [FromQuery] bool sortDescending = false)
     {
         var userId = GetCurrentUserId();
-        var tasks = await _context.Tasks
+        
+        // Базовый запрос
+        var query = _context.Tasks
             .Where(t => t.UserId == userId)
+            .AsQueryable();
+        
+        // Применяем фильтрацию по статусу
+        if (isCompleted.HasValue)
+        {
+            query = query.Where(t => t.IsCompleted == isCompleted.Value);
+        }
+        
+        // Применяем поиск по Title и Description
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            searchTerm = searchTerm.ToLower();
+            query = query.Where(t => 
+                t.Title.ToLower().Contains(searchTerm) || 
+                (t.Description != null && t.Description.ToLower().Contains(searchTerm)));
+        }
+        
+        // Получаем общее количество до пагинации
+        var totalCount = await query.CountAsync();
+        
+        // Применяем сортировку
+        query = ApplySorting(query, sortBy, sortDescending);
+        
+        // Применяем пагинацию
+        var tasks = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
         
-        return Ok(tasks);
+        // Формируем ответ с пагинацией
+        var response = new PagedResponseDto<TaskItem>(tasks, totalCount, page, pageSize);
+        
+        return Ok(response);
+    }
+    
+    // Альтернативный метод с использованием DTO
+    [HttpGet("advanced")]
+    public async Task<ActionResult<PagedResponseDto<TaskItem>>> GetTasksAdvanced([FromQuery] TaskRequestDto request)
+    {
+        var userId = GetCurrentUserId();
+        
+        // Валидация
+        if (request.Page < 1) request.Page = 1;
+        if (request.PageSize < 1 || request.PageSize > 100) request.PageSize = 10;
+        
+        // Базовый запрос
+        var query = _context.Tasks
+            .Where(t => t.UserId == userId)
+            .AsQueryable();
+        
+        // Фильтрация по статусу
+        if (request.IsCompleted.HasValue)
+        {
+            query = query.Where(t => t.IsCompleted == request.IsCompleted.Value);
+        }
+        
+        // Поиск
+        if (!string.IsNullOrWhiteSpace(request.SearchTerm))
+        {
+            var searchTerm = request.SearchTerm.ToLower();
+            query = query.Where(t => 
+                t.Title.ToLower().Contains(searchTerm) || 
+                (t.Description != null && t.Description.ToLower().Contains(searchTerm)));
+        }
+        
+        // Подсчет общего количества
+        var totalCount = await query.CountAsync();
+        
+        // Сортировка
+        query = ApplySorting(query, request.SortBy ?? "createdat", request.SortDescending);
+        
+        // Пагинация
+        var tasks = await query
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync();
+        
+        return Ok(new PagedResponseDto<TaskItem>(tasks, totalCount, request.Page, request.PageSize));
+    }
+
+    private IQueryable<TaskItem> ApplySorting(IQueryable<TaskItem> query, string? sortBy, bool sortDescending)
+    {
+        sortBy = sortBy?.ToLower();
+        
+        return sortBy switch
+        {
+            "title" => sortDescending 
+                ? query.OrderByDescending(t => t.Title) 
+                : query.OrderBy(t => t.Title),
+            "completed" => sortDescending 
+                ? query.OrderByDescending(t => t.IsCompleted) 
+                : query.OrderBy(t => t.IsCompleted),
+            "createdat" => sortDescending 
+                ? query.OrderByDescending(t => t.CreatedAt) 
+                : query.OrderBy(t => t.CreatedAt),
+            _ => sortDescending 
+                ? query.OrderByDescending(t => t.CreatedAt) 
+                : query.OrderBy(t => t.CreatedAt)
+        };
     }
 
     [HttpGet("GetTask/{id}")]
