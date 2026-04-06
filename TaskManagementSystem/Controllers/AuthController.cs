@@ -17,10 +17,13 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register(RegisterDto registerDto)
+    public async Task<IActionResult> Register([FromBody] RegisterDto registerDto)
     {
+        // Валидация выполнится автоматически благодаря FluentValidation
+        // Если есть ошибки, вернется Status 400 с деталями
+
         var result = await _userService.RegisterAsync(registerDto);
-        
+
         if (result == null)
             return BadRequest(new { message = "Пользователь с таким email уже существует" });
 
@@ -28,10 +31,10 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login(LoginDto loginDto)
+    public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
     {
         var result = await _userService.LoginAsync(loginDto);
-        
+
         if (result == null)
             return Unauthorized(new { message = "Неверный email или пароль" });
 

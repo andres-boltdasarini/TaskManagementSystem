@@ -1,9 +1,12 @@
+// Controllers/TasksController.cs - обновите методы CreateTask и UpdateTask
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TaskManagementSystem.API.Data;
 using TaskManagementSystem.API.Models;
+using TaskManagementSystem.API.Validators;
 
 namespace TaskManagementSystem.API.Controllers;
 
@@ -13,10 +16,17 @@ namespace TaskManagementSystem.API.Controllers;
 public class TasksController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IValidator<TaskItem> _taskValidator;
+    private readonly IValidator<TaskRequestDto> _taskRequestValidator;
 
-    public TasksController(AppDbContext context)
+    public TasksController(
+        AppDbContext context,
+        IValidator<TaskItem> taskValidator,
+        IValidator<TaskRequestDto> taskRequestValidator)
     {
         _context = context;
+        _taskValidator = taskValidator;
+        _taskRequestValidator = taskRequestValidator;
     }
 
     private Guid GetCurrentUserId()
@@ -157,34 +167,48 @@ public class TasksController : ControllerBase
         
         return Ok(task);
     }
-   
+
     [HttpPost("CreateTask")]
-    public async Task<ActionResult<TaskItem>> CreateTask(TaskItem task)
+    public async Task<ActionResult<TaskItem>> CreateTask([FromBody] TaskItem task)
     {
         var userId = GetCurrentUserId();
-        
+
+        // Ручная валидация (хотя FluentValidation автоматическая, это для примера)
+        var validationResult = await _taskValidator.ValidateAsync(task);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(validationResult.Errors);
+        }
+
         task.Id = Guid.NewGuid();
         task.CreatedAt = DateTime.UtcNow;
         task.UserId = userId;
 
         _context.Tasks.Add(task);
         await _context.SaveChangesAsync();
-        
+
         return CreatedAtAction(nameof(GetTask), new { id = task.Id }, task);
     }
 
     [HttpPut("UpdateTask/{id}")]
-    public async Task<ActionResult> UpdateTask(Guid id, TaskItem updatedTask)
+    public async Task<ActionResult> UpdateTask(Guid id, [FromBody] TaskItem updatedTask)
     {
         if (id != updatedTask.Id)
         {
             return BadRequest();
         }
-        
+
+        // Валидация обновленной задачи
+        var validationResult = await _taskValidator.ValidateAsync(updatedTask);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(validationResult.Errors);
+        }
+
         var userId = GetCurrentUserId();
         var task = await _context.Tasks
             .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
-        
+
         if (task == null)
         {
             return NotFound();
@@ -193,11 +217,13 @@ public class TasksController : ControllerBase
         task.Title = updatedTask.Title;
         task.Description = updatedTask.Description;
         task.IsCompleted = updatedTask.IsCompleted;
-        
+
         await _context.SaveChangesAsync();
-        
+
         return NoContent();
     }
+
+
 
     [HttpDelete("DeleteTask/{id}")]
     public async Task<IActionResult> DeleteTask(Guid id)

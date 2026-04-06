@@ -1,15 +1,26 @@
 using System.Text;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using TaskManagementSystem.API.Data;
+using TaskManagementSystem.API.Middleware;
 using TaskManagementSystem.API.Services;
 using TaskManagementSystem.API.Settings;
+using TaskManagementSystem.API.Validators;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Добавляем контроллеры
-builder.Services.AddControllers();
+// Добавляем контроллеры с FluentValidation
+builder.Services.AddControllers()
+    .AddFluentValidation(fv =>
+    {
+        fv.RegisterValidatorsFromAssemblyContaining<RegisterDtoValidator>();
+        fv.ImplicitlyValidateChildProperties = true;
+        fv.ImplicitlyValidateRootCollectionElements = true;
+    });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -22,7 +33,7 @@ builder.Services.AddSwaggerGen(c =>
         In = Microsoft.OpenApi.Models.ParameterLocation.Header,
         Description = "Введите JWT токен в формате: Bearer {token}"
     });
-    
+
     c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
     {
         {
@@ -39,12 +50,15 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Регистрация валидаторов
+builder.Services.AddValidatorsFromAssemblyContaining<RegisterDtoValidator>();
+
 // Добавляем JWT настройки
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 builder.Services.Configure<JwtSettings>(jwtSettings);
 
 // Добавляем аутентификацию
-var secretKey = builder.Configuration["JwtSettings:SecretKey"] 
+var secretKey = builder.Configuration["JwtSettings:SecretKey"]
                 ?? throw new InvalidOperationException("JWT Secret Key is not configured");
 var key = Encoding.UTF8.GetBytes(secretKey);
 
@@ -88,9 +102,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
+app.UseMiddleware<ValidationExceptionMiddleware>();
 app.UseHttpsRedirection();
-app.UseAuthentication(); // Добавляем аутентификацию
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
