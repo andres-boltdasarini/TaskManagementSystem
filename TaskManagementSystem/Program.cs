@@ -96,6 +96,17 @@ builder.Services.AddScoped<UserService>();
 
 var app = builder.Build();
 
+// Перенаправление с корня на Swagger
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/")
+    {
+        context.Response.Redirect("/swagger/index.html", permanent: false);
+        return;
+    }
+    await next();
+});
+
 // Настраиваем Swagger
 if (app.Environment.IsDevelopment())
 {
